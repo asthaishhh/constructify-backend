@@ -1,0 +1,18 @@
+[{
+  "_id": {
+    "$oid": "69b4ff6137789226f242571b"
+  },
+  "name": "Admin User",
+  "email": "admin@erp.com",
+  "password": "$2b$10$CwTycUXWue0Thq9StjUM0uJ8H0Qy4v3YqKqRR3YKHyCuXapnwXCfK",
+  "role": "admin"
+},
+{
+  "_id": {
+    "$oid": "69b4ff6137789226f242571c"
+  },
+  "name": "Astha Patel",
+  "email": "astha@erp.com",
+  "password": "$2b$10$CwTycUXWue0Thq9StjUM0uJ8H0Qy4v3YqKqRR3YKHyCuXapnwXCfK",
+  "role": "user"
+}]

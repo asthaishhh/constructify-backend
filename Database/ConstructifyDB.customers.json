@@ -1,0 +1,77 @@
+[{
+  "_id": {
+    "$oid": "69b4fdeabb6298f4a2317a79"
+  },
+  "name": "Rajesh Patel",
+  "phone": "9876543210",
+  "email": "rajesh.patel@gmail.com",
+  "address": "Satellite, Ahmedabad",
+  "gstNumber": "24ABCDE1234F1Z5",
+  "companyName": "Patel Construction"
+},
+{
+  "_id": {
+    "$oid": "69b4fdeabb6298f4a2317a7a"
+  },
+  "name": "Neha Shah",
+  "phone": "9876543211",
+  "email": "neha.shah@gmail.com",
+  "address": "Vastrapur, Ahmedabad",
+  "gstNumber": "24FGHIJ5678K2Z6",
+  "companyName": "Shah Infrastructure"
+},
+{
+  "_id": {
+    "$oid": "69b4fdeabb6298f4a2317a7b"
+  },
+  "name": "Amit Mehta",
+  "phone": "9876543212",
+  "email": "amit.mehta@gmail.com",
+  "address": "Bopal, Ahmedabad",
+  "gstNumber": "24LMNOP4321Q3Z7",
+  "companyName": "Mehta Builders"
+},
+{
+  "_id": {
+    "$oid": "69b4fdeabb6298f4a2317a7c"
+  },
+  "name": "Kiran Desai",
+  "phone": "9876543213",
+  "email": "kiran.desai@gmail.com",
+  "address": "Prahlad Nagar, Ahmedabad",
+  "gstNumber": "24RSTUV8765W4Z8",
+  "companyName": "Desai Developers"
+},
+{
+  "_id": {
+    "$oid": "69b4fdeabb6298f4a2317a7d"
+  },
+  "name": "Rohan Trivedi",
+  "phone": "9876543214",
+  "email": "rohan.trivedi@gmail.com",
+  "address": "Navrangpura, Ahmedabad",
+  "gstNumber": "24XYZAB1357C5Z9",
+  "companyName": "Trivedi Contractors"
+},
+{
+  "_id": {
+    "$oid": "69b4fe67bb6298f4a2317a7e"
+  },
+  "name": "Astha Patel",
+  "phone": "8128251288",
+  "email": "asthaishhh@gmail.com",
+  "address": "Raysan, Gandhinagar",
+  "gstNumber": "24ABCDE1234F1Z5",
+  "companyName": "Patel Construction"
+},
+{
+  "_id": {
+    "$oid": "69b4fe67bb6298f4a2317a7f"
+  },
+  "name": "Yash Wadhvani",
+  "phone": "9904366478",
+  "email": "yashwadhvani123@gmail.com",
+  "address": "Naroda, Ahmedabad",
+  "gstNumber": "24FGHIJ5678K2Z6",
+  "companyName": "Wadhvani Infrastructure"
+}]

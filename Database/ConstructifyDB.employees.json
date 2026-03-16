@@ -1,0 +1,60 @@
+[{
+  "_id": {
+    "$oid": "69b4fd79bb6298f4a2317a6e"
+  },
+  "name": "Rahul Patel",
+  "role": "Site Supervisor",
+  "contact": "9876501001",
+  "salary": 35000,
+  "status": "Active"
+},
+{
+  "_id": {
+    "$oid": "69b4fd79bb6298f4a2317a6f"
+  },
+  "name": "Amit Shah",
+  "role": "Accountant",
+  "contact": "9876501002",
+  "salary": 40000,
+  "status": "Active"
+},
+{
+  "_id": {
+    "$oid": "69b4fd79bb6298f4a2317a70"
+  },
+  "name": "Suresh Kumar",
+  "role": "Mason",
+  "contact": "9876501003",
+  "salary": 22000,
+  "status": "Active"
+},
+{
+  "_id": {
+    "$oid": "69b4fd79bb6298f4a2317a71"
+  },
+  "name": "Ravi Solanki",
+  "role": "Electrician",
+  "contact": "9876501004",
+  "salary": 25000,
+  "status": "Inactive"
+},
+{
+  "_id": {
+    "$oid": "69b4fd79bb6298f4a2317a72"
+  },
+  "name": "Karan Mehta",
+  "role": "Store Manager",
+  "contact": "9876501005",
+  "salary": 32000,
+  "status": "Active"
+},
+{
+  "_id": {
+    "$oid": "69b4fd79bb6298f4a2317a73"
+  },
+  "name": "Vijay Desai",
+  "role": "Carpenter",
+  "contact": "9876501006",
+  "salary": 24000,
+  "status": "Active"
+}]
