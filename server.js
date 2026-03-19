@@ -1,77 +1,10 @@
-// import express from "express";
-// import mongoose from "mongoose";
-// import cors from "cors";
-// import dotenv from "dotenv";
-// import morgan from "morgan";
-// import chartRoutes from "./routes/chartRoutes.js";
-// import materialsRouter from "./routes/materials.js";
-// import employeeRoutes from "./routes/employeeRoutes.js";
-// import dashboardOrdersRoutes from "./routes/dashboardOrders.js";
-// import transportationRoutes from "./routes/transportation.js";
-// import authRoutes from "./routes/auth.js";
-// import emailRoutes from "./routes/email.js";
-// import invoicesRouter from "./routes/invoices.js";
-// import Material from "./middleware/models/Material.js";
-// import OrderManagement from "./middleware/models/OrderManagement.js";
-// import customerRoutes from "./routes/customerRoutes.js";
 
-
-
-// // Load environment variables
-// dotenv.config();
-
-// const app = express();
-
-// app.use(morgan('dev'));
-// app.use(cors());
-// app.use(express.json({ limit: '10mb' })); // Increase payload limit for PDF data
-// app.use("/api/charts", chartRoutes);
-// app.use("/api/materials", materialsRouter);
-// app.use("/api/dashboard-orders", dashboardOrdersRoutes);
-// app.use("/api/employees", employeeRoutes);
-// app.use("/api/transportation", transportationRoutes);
-// app.use("/api/auth", authRoutes);
-// app.use("/api/email", emailRoutes);
-// app.use("/api/invoices", invoicesRouter);
-// app.use("/api/customers", customerRoutes);
-
-// // Connect MongoDB
-// mongoose
-//   .connect(process.env.MONGODB_URI)
-//   .then(() => console.log("MongoDB Connected"))
-//   .catch((err) => console.error(err));
-
-// // Schema + Model
-// const orderSchema = new mongoose.Schema({
-//   id: String,
-//   customer: String,
-//   product: String,
-//   amount: String,
-//   status: String,
-//   date: String,
-// });
-// const Order = mongoose.model("Order", orderSchema);
-
-
-// app.get("/", (req, res) => res.send("API is running"));
-
-
-// // API route
-// app.get("/api/orders", async (req, res) => {
-//   const orders = await Order.find();
-//   res.json(orders);
-// });
-
-// // ✅ Health check
-// app.get("/api/health", (req, res) => {
-//   res.json({ status: "Server is running on port 5000" });
-// });
-
-// app.listen(5000, '0.0.0.0', () => console.log("Server running on port 5000"));
 import express from "express";
 import mongoose from "mongoose";
 import cors from "cors";
 import dotenv from "dotenv";
+import path from "path";
+import { fileURLToPath } from "url";
 import morgan from "morgan";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
@@ -88,7 +21,14 @@ import emailRoutes from "./routes/email.js";
 import dashboardRoutes from "./routes/dashboard.route.js";
 
 
-dotenv.config();
+// Ensure .env is loaded from the backend directory regardless of CWD
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+dotenv.config({ path: path.join(__dirname, ".env") });
+
+if (!process.env.MONGODB_URI) {
+  console.warn("MONGODB_URI not found in .env (backend). Using process.env value if set externally.");
+}
 
 const app = express();
 
@@ -163,6 +103,9 @@ app.use("/api/dashboard", dashboardRoutes);
 
 // Root + health
 app.get("/", (req, res) => res.send("API is running"));
+app.get("/health", (req, res) => {
+  res.status(200).json({ status: "ok", service: "backend", timestamp: new Date().toISOString() });
+});
 app.get("/api/health", (req, res) => res.json({ status: "ok" }));
 
 // MongoDB

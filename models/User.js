@@ -37,7 +37,7 @@ const userSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
-});
+}, { collection: 'users' });
 
 
 // Hash password before saving
@@ -67,6 +67,6 @@ userSchema.methods.toJSON = function () {
   return userObject;
 };
 
-const User = mongoose.model('User', userSchema);
+const User = mongoose.models.User || mongoose.model('User', userSchema);
 
 export default User;

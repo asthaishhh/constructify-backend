@@ -4,6 +4,7 @@ import authorizeRoles from "../middleware/authorize.js";
 import {
   getLowStockMaterials,
   getDashboardSummary,
+  getDashboardAnalytics,
 } from "../controllers/dashboard.controller.js";
 
 const router = express.Router();
@@ -21,6 +22,13 @@ router.get(
   authenticateToken,
   authorizeRoles("admin"),
   getDashboardSummary
+);
+
+router.get(
+  "/analytics",
+  authenticateToken,
+  authorizeRoles("admin", "user"),
+  getDashboardAnalytics
 );
 
 export default router;
