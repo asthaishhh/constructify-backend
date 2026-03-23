@@ -1,5 +1,15 @@
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
+import Company from "../models/Company.js";
+
+const createSlug = (value = "") =>
+  String(value)
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
 
 const generateToken = (user) => {
   if (!process.env.JWT_SECRET) {
@@ -8,7 +18,7 @@ const generateToken = (user) => {
 
   // include role for RBAC
   return jwt.sign(
-    { id: user._id, role: user.role },
+    { id: user._id, role: user.role, companyId: user.companyId || null },
     process.env.JWT_SECRET,
     { expiresIn: "7d" }
   );
@@ -54,6 +64,7 @@ export const signup = async (req, res) => {
       token,
       user: {
         id: user._id,
+        companyId: user.companyId || null,
         name: user.name,
         email: user.email,
         role: user.role,
@@ -98,6 +109,7 @@ export const login = async (req, res) => {
       token,
       user: {
         id: user._id,
+        companyId: user.companyId || null,
         name: user.name,
         email: user.email,
         role: user.role,
@@ -113,10 +125,108 @@ export const me = async (req, res) => {
   res.json({
     user: {
       id: req.user._id,
+      companyId: req.user.companyId || null,
       name: req.user.name,
       email: req.user.email,
       role: req.user.role,
       createdAt: req.user.createdAt,
     },
   });
+};
+
+export const registerCompany = async (req, res) => {
+  try {
+    const {
+      companyName,
+      companyTagline,
+      logo,
+      ownerName,
+      gstIn,
+      address,
+      phone,
+      email,
+      password,
+    } = req.body || {};
+
+    if (!companyName || !ownerName || !email || !password) {
+      return res.status(400).json({
+        message: "Please provide companyName, ownerName, email and password",
+      });
+    }
+
+    if (String(password).length < 6) {
+      return res.status(400).json({
+        message: "Password must be at least 6 characters long",
+      });
+    }
+
+    const normalizedEmail = String(email).toLowerCase().trim();
+    const baseSlug = createSlug(companyName);
+
+    if (!baseSlug) {
+      return res.status(400).json({ message: "Invalid company name" });
+    }
+
+    const existingUser = await User.findOne({ email: normalizedEmail });
+    if (existingUser) {
+      return res.status(400).json({
+        message: "User with this email already exists",
+      });
+    }
+
+    let slug = baseSlug;
+    let slugCounter = 1;
+    while (await Company.findOne({ slug })) {
+      slug = `${baseSlug}-${slugCounter}`;
+      slugCounter += 1;
+    }
+
+    const company = await Company.create({
+      name: String(companyName).trim(),
+      ownerName: String(ownerName).trim(),
+      slug,
+      companyTagline: String(companyTagline || "").trim(),
+      logo: String(logo || "").trim(),
+      gstIn: String(gstIn || "").trim(),
+      address: String(address || "").trim(),
+      phone: String(phone || "").trim(),
+      email: normalizedEmail,
+    });
+
+    const adminUser = await User.create({
+      companyId: company._id,
+      name: String(ownerName).trim(),
+      email: normalizedEmail,
+      password,
+      role: "admin",
+    });
+
+    const token = generateToken(adminUser);
+
+    return res.status(201).json({
+      message: "Company and admin user created successfully",
+      token,
+      company: {
+        id: company._id,
+        name: company.name,
+        slug: company.slug,
+      },
+      user: {
+        id: adminUser._id,
+        companyId: adminUser.companyId,
+        name: adminUser.name,
+        email: adminUser.email,
+        role: adminUser.role,
+      },
+    });
+  } catch (error) {
+    console.error("Register company error:", error);
+    if (error.name === "ValidationError") {
+      return res.status(400).json({
+        message: "Validation error",
+        errors: Object.values(error.errors).map((err) => err.message),
+      });
+    }
+    return res.status(500).json({ message: "Server error during company registration" });
+  }
 };

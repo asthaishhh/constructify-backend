@@ -2,6 +2,12 @@ import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 
 const userSchema = new mongoose.Schema({
+  companyId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Company',
+    index: true,
+  },
+
   name: {
     type: String,
     required: [true, 'Name is required'],
@@ -26,10 +32,10 @@ const userSchema = new mongoose.Schema({
     minlength: [6, 'Password must be at least 6 characters long'],
   },
 
-  // ✅ ADD THIS FIELD
   role: {
     type: String,
     enum: ['admin', 'user'],
+    required: [true, 'Role is required'],
     default: 'user',
   },
 
@@ -38,6 +44,8 @@ const userSchema = new mongoose.Schema({
     default: Date.now,
   },
 }, { collection: 'users' });
+
+userSchema.index({ companyId: 1, email: 1 }, { unique: true, sparse: true });
 
 
 // Hash password before saving

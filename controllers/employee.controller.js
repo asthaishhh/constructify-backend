@@ -1,11 +1,17 @@
 import Employee from "../models/Employee.js";
 
+const getCompanyIdFromReq = (req) => String(req?.user?.companyId || "").trim();
+
 
 // CREATE EMPLOYEE
 export const createEmployee = async (req, res) => {
   try {
+    const companyId = getCompanyIdFromReq(req);
+    if (!companyId) {
+      return res.status(403).json({ success: false, message: "Company context missing in token" });
+    }
 
-    const employee = new Employee(req.body);
+    const employee = new Employee({ ...req.body, companyId });
     await employee.save();
 
     res.status(201).json({
@@ -30,8 +36,12 @@ export const createEmployee = async (req, res) => {
 // GET ALL EMPLOYEES
 export const getAllEmployees = async (req, res) => {
   try {
+    const companyId = getCompanyIdFromReq(req);
+    if (!companyId) {
+      return res.status(403).json({ success: false, message: "Company context missing in token" });
+    }
 
-    const employees = await Employee.find().sort({ createdAt: -1 });
+    const employees = await Employee.find({ companyId }).sort({ createdAt: -1 });
 
     res.status(200).json({
       success: true,
@@ -54,8 +64,12 @@ export const getAllEmployees = async (req, res) => {
 // GET SINGLE EMPLOYEE
 export const getEmployeeById = async (req, res) => {
   try {
+    const companyId = getCompanyIdFromReq(req);
+    if (!companyId) {
+      return res.status(403).json({ success: false, message: "Company context missing in token" });
+    }
 
-    const employee = await Employee.findById(req.params.id);
+    const employee = await Employee.findOne({ _id: req.params.id, companyId });
 
     if (!employee) {
       return res.status(404).json({
@@ -85,9 +99,13 @@ export const getEmployeeById = async (req, res) => {
 // UPDATE EMPLOYEE
 export const updateEmployee = async (req, res) => {
   try {
+    const companyId = getCompanyIdFromReq(req);
+    if (!companyId) {
+      return res.status(403).json({ success: false, message: "Company context missing in token" });
+    }
 
-    const employee = await Employee.findByIdAndUpdate(
-      req.params.id,
+    const employee = await Employee.findOneAndUpdate(
+      { _id: req.params.id, companyId },
       req.body,
       { new: true }
     );
@@ -121,8 +139,12 @@ export const updateEmployee = async (req, res) => {
 // DELETE EMPLOYEE
 export const deleteEmployee = async (req, res) => {
   try {
+    const companyId = getCompanyIdFromReq(req);
+    if (!companyId) {
+      return res.status(403).json({ success: false, message: "Company context missing in token" });
+    }
 
-    const employee = await Employee.findByIdAndDelete(req.params.id);
+    const employee = await Employee.findOneAndDelete({ _id: req.params.id, companyId });
 
     if (!employee) {
       return res.status(404).json({

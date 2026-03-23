@@ -5,6 +5,9 @@
   "type": "module",
   "scripts": {
     "start": "node server.js",
+    "migrate:backfill-company": "node scripts/backfill_company_data_by_email.mjs",
+    "migrate:fix-material-indexes": "node scripts/fix_material_indexes.mjs",
+    "migrate:fix-order-indexes": "node scripts/fix_order_indexes.mjs",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -26,8 +29,9 @@
     "morgan": "^1.10.1",
     "nodemailer": "^7.0.11",
     "pdfkit": "^0.17.2",
-    "svg-to-pdfkit": "^0.1.8",
-    "react-leaflet": "^5.0.0"
+    "react-leaflet": "^5.0.0",
+    "sib-api-v3-sdk": "^8.5.0",
+    "svg-to-pdfkit": "^0.1.8"
   },
   "devDependencies": {
     "nodemon": "^3.1.14"

@@ -5,6 +5,8 @@ import authorizeRoles from "../middleware/authorize.js";
 
 const router = express.Router();
 
+const getCompanyIdFromReq = (req) => String(req?.user?.companyId || "").trim();
+
 /* -------------------------
    🔐 Require Authentication
 --------------------------*/
@@ -16,7 +18,10 @@ router.use(authenticateToken);
 --------------------------*/
 router.get("/", authorizeRoles("admin", "user"), async (req, res) => {
   try {
-    const employees = await Employee.find().sort({ createdAt: -1 });
+    const companyId = getCompanyIdFromReq(req);
+    if (!companyId) return res.status(403).json({ message: "Company context missing in token" });
+
+    const employees = await Employee.find({ companyId }).sort({ createdAt: -1 });
     res.json(employees);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -29,7 +34,10 @@ router.get("/", authorizeRoles("admin", "user"), async (req, res) => {
 --------------------------*/
 router.post("/", authorizeRoles("admin"), async (req, res) => {
   try {
-    const savedEmployee = await Employee.create(req.body);
+    const companyId = getCompanyIdFromReq(req);
+    if (!companyId) return res.status(403).json({ message: "Company context missing in token" });
+
+    const savedEmployee = await Employee.create({ ...req.body, companyId });
     res.status(201).json(savedEmployee);
   } catch (err) {
     res.status(400).json({ message: err.message });
@@ -42,8 +50,11 @@ router.post("/", authorizeRoles("admin"), async (req, res) => {
 --------------------------*/
 router.put("/:id", authorizeRoles("admin"), async (req, res) => {
   try {
-    const updatedEmployee = await Employee.findByIdAndUpdate(
-      req.params.id,
+    const companyId = getCompanyIdFromReq(req);
+    if (!companyId) return res.status(403).json({ message: "Company context missing in token" });
+
+    const updatedEmployee = await Employee.findOneAndUpdate(
+      { _id: req.params.id, companyId },
       req.body,
       { new: true }
     );
@@ -64,7 +75,10 @@ router.put("/:id", authorizeRoles("admin"), async (req, res) => {
 --------------------------*/
 router.delete("/:id", authorizeRoles("admin"), async (req, res) => {
   try {
-    const deletedEmployee = await Employee.findByIdAndDelete(req.params.id);
+    const companyId = getCompanyIdFromReq(req);
+    if (!companyId) return res.status(403).json({ message: "Company context missing in token" });
+
+    const deletedEmployee = await Employee.findOneAndDelete({ _id: req.params.id, companyId });
 
     if (!deletedEmployee) {
       return res.status(404).json({ message: "Employee not found" });

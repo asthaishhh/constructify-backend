@@ -1,6 +1,9 @@
 import Material from "../models/Material.js";
 import Invoice from "../models/Invoice.js";
 import Order from "../models/order.js";
+import Customer from "../models/Customer.js";
+
+const getCompanyIdFromReq = (req) => String(req?.user?.companyId || "").trim();
 
 const CATEGORY_COLORS = [
   "#8B7E74",
@@ -17,6 +20,7 @@ const CATEGORY_COLORS = [
 const ORDER_STATUS_COLORS = {
   pending: "#f59e0b",
   processing: "#3b82f6",
+  received: "#6366f1",
   completed: "#10b981",
   cancelled: "#ef4444",
 };
@@ -84,7 +88,13 @@ const normalizeInvoiceAmount = (invoice) => {
 // GET /api/dashboard/low-stock
 export const getLowStockMaterials = async (req, res) => {
   try {
+    const companyId = getCompanyIdFromReq(req);
+    if (!companyId) {
+      return res.status(403).json({ message: "Company context missing in token" });
+    }
+
     const lowStock = await Material.find({
+      companyId,
       $expr: { $lte: ["$quantity", "$minStock"] },
     }).sort({ quantity: 1 });
 
@@ -104,26 +114,30 @@ export const getLowStockMaterials = async (req, res) => {
 // GET /api/dashboard/summary
 export const getDashboardSummary = async (req, res) => {
   try {
+    const companyId = getCompanyIdFromReq(req);
+    if (!companyId) {
+      return res.status(403).json({ message: "Company context missing in token" });
+    }
+
     const [totalMaterials, totalCustomers, totalInvoices, totalOrders] =
       await Promise.all([
-        Material.countDocuments(),
-        // If you have Customer model, replace this line accordingly
-        // Customer.countDocuments(),
-        Promise.resolve(null), // placeholder if you don't want customer count here
-        Invoice.countDocuments(),
-        Order.countDocuments(),
+        Material.countDocuments({ companyId }),
+        Customer.countDocuments({ companyId }),
+        Invoice.countDocuments({ companyId }),
+        Order.countDocuments({ companyId }),
       ]);
 
     const lowStockCount = await Material.countDocuments({
+      companyId,
       $expr: { $lte: ["$quantity", "$minStock"] },
     });
 
     res.json({
       totalMaterials,
+      totalCustomers,
       totalInvoices,
       totalOrders,
       lowStockCount,
-      // totalCustomers, // uncomment if you add Customer model here
     });
   } catch (err) {
     res.status(500).json({
@@ -137,17 +151,22 @@ export const getDashboardSummary = async (req, res) => {
 // GET /api/dashboard/analytics
 export const getDashboardAnalytics = async (req, res) => {
   try {
+    const companyId = getCompanyIdFromReq(req);
+    if (!companyId) {
+      return res.status(403).json({ message: "Company context missing in token" });
+    }
+
     const [materials, invoices, orders] = await Promise.all([
-      Material.find().lean(),
-      Invoice.find().populate("materials.material", "name").lean(),
-      Order.find().lean(),
+      Material.find({ companyId }).lean(),
+      Invoice.find({ companyId }).populate("materials.material", "name").lean(),
+      Order.find({ companyId }).lean(),
     ]);
 
     const monthKeys = createTrailingMonthKeys(12);
     const monthlyMap = Object.fromEntries(
       monthKeys.map((monthKey) => [
         monthKey,
-        { month: monthLabelFromKey(monthKey), invoiceRevenue: 0, orderRevenue: 0, invoices: 0, orders: 0 },
+        { month: monthLabelFromKey(monthKey), invoiceRevenue: 0, orderRevenue: 0, orderProfit: 0, invoices: 0, orders: 0 },
       ])
     );
 
@@ -163,9 +182,11 @@ export const getDashboardAnalytics = async (req, res) => {
     }
 
     let orderRevenue = 0;
+    let totalProfit = 0;
     const orderStatusCount = {
       pending: 0,
       processing: 0,
+      received: 0,
       completed: 0,
       cancelled: 0,
     };
@@ -173,9 +194,12 @@ export const getDashboardAnalytics = async (req, res) => {
     for (const order of orders) {
       const amount = normalizeOrderAmount(order);
       orderRevenue += amount;
+      const orderProfit = Number(order?.profit || 0);
+      totalProfit += orderProfit;
       const monthKey = monthKeyFromDate(order?.orderDate || order?.createdAt);
       if (monthKey && monthlyMap[monthKey]) {
         monthlyMap[monthKey].orderRevenue += amount;
+        monthlyMap[monthKey].orderProfit += orderProfit;
         monthlyMap[monthKey].orders += 1;
       }
 
@@ -185,12 +209,13 @@ export const getDashboardAnalytics = async (req, res) => {
       }
     }
 
-    const totalRevenue = invoiceRevenue + orderRevenue;
+    // Revenue comes from invoices (selling); orderRevenue is treated as cost/exposure.
+    const totalRevenue = invoiceRevenue;
     const monthlyTrend = monthKeys.map((monthKey) => {
       const row = monthlyMap[monthKey];
-      const revenue = row.invoiceRevenue + row.orderRevenue;
+      const revenue = row.invoiceRevenue;
       const expenses = row.orderRevenue;
-      const profit = revenue - expenses;
+      const profit = row.orderProfit || (revenue - expenses);
       const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
 
       return {
@@ -263,6 +288,7 @@ export const getDashboardAnalytics = async (req, res) => {
         totalRevenue: round2(totalRevenue),
         invoiceRevenue: round2(invoiceRevenue),
         orderRevenue: round2(orderRevenue),
+        totalProfit: round2(totalProfit),
         totalInvoices: invoices.length,
         totalOrders: orders.length,
         lowStockCount,

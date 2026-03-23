@@ -7,6 +7,8 @@ import authorizeRoles from "../middleware/authorize.js";
 
 const router = express.Router();
 
+const getCompanyIdFromReq = (req) => String(req?.user?.companyId || "").trim();
+
 /* -------------------------
    🔐 Require Login for all
 --------------------------*/
@@ -18,7 +20,10 @@ router.use(authenticateToken);
 --------------------------*/
 router.get("/", authorizeRoles("admin", "user"), async (req, res) => {
   try {
-    const materials = await Material.find().sort({ createdAt: -1 });
+    const companyId = getCompanyIdFromReq(req);
+    if (!companyId) return res.status(403).json({ message: "Company context missing in token" });
+
+    const materials = await Material.find({ companyId }).sort({ createdAt: -1 });
     res.json(materials);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -31,9 +36,26 @@ router.get("/", authorizeRoles("admin", "user"), async (req, res) => {
 --------------------------*/
 router.post("/", authorizeRoles("admin"), async (req, res) => {
   try {
-    const saved = await Material.create(req.body);
+    const companyId = getCompanyIdFromReq(req);
+    if (!companyId) return res.status(403).json({ message: "Company context missing in token" });
+
+    const payload = {
+      ...req.body,
+      companyId,
+      name: String(req.body?.name || "").trim().toLowerCase(),
+      ...(req.body?.price !== undefined
+        ? { price: Number.isFinite(Number(req.body.price)) ? Number(req.body.price) : undefined }
+        : {}),
+    };
+
+    const saved = await Material.create(payload);
     res.status(201).json(saved);
   } catch (err) {
+    if (err?.code === 11000) {
+      return res.status(409).json({
+        message: "Material already exists for this company. Update quantity instead of adding duplicate.",
+      });
+    }
     res.status(400).json({ message: err.message });
   }
 });
@@ -44,9 +66,24 @@ router.post("/", authorizeRoles("admin"), async (req, res) => {
 --------------------------*/
 router.put("/:id", authorizeRoles("admin"), async (req, res) => {
   try {
-    const updated = await Material.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
-    });
+    const companyId = getCompanyIdFromReq(req);
+    if (!companyId) return res.status(403).json({ message: "Company context missing in token" });
+
+    const payload = {
+      ...req.body,
+      ...(req.body?.name !== undefined
+        ? { name: String(req.body.name || "").trim().toLowerCase() }
+        : {}),
+      ...(req.body?.price !== undefined
+        ? { price: Number.isFinite(Number(req.body.price)) ? Number(req.body.price) : undefined }
+        : {}),
+    };
+
+    const updated = await Material.findOneAndUpdate(
+      { _id: req.params.id, companyId },
+      payload,
+      { new: true }
+    );
 
     if (!updated) {
       return res.status(404).json({ message: "Material not found" });
@@ -54,6 +91,11 @@ router.put("/:id", authorizeRoles("admin"), async (req, res) => {
 
     res.json(updated);
   } catch (err) {
+    if (err?.code === 11000) {
+      return res.status(409).json({
+        message: "Material name already exists for this company.",
+      });
+    }
     res.status(400).json({ message: err.message });
   }
 });
@@ -64,7 +106,10 @@ router.put("/:id", authorizeRoles("admin"), async (req, res) => {
 --------------------------*/
 router.delete("/:id", authorizeRoles("admin"), async (req, res) => {
   try {
-    const deleted = await Material.findByIdAndDelete(req.params.id);
+    const companyId = getCompanyIdFromReq(req);
+    if (!companyId) return res.status(403).json({ message: "Company context missing in token" });
+
+    const deleted = await Material.findOneAndDelete({ _id: req.params.id, companyId });
 
     if (!deleted) {
       return res.status(404).json({ message: "Material not found" });

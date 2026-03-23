@@ -1,6 +1,8 @@
 import mongoose from "mongoose";
 import Invoice from "../models/Invoice.js";
 import Material from "../models/Material.js";
+import Order from "../models/order.js";
+import Customer from "../models/Customer.js";
 import PDFDocument from "pdfkit";
 import Counter from "../models/Counter.js";
 import SVGtoPDF from "svg-to-pdfkit";
@@ -86,6 +88,12 @@ const computeAmount = (materials = []) =>
     const rate = Number(item.rate || 0);
     return sum + qty * rate;
   }, 0);
+
+const getCompanyIdFromReq = (req) => {
+  const raw = req?.user?.companyId;
+  if (!raw) return null;
+  return String(raw).trim() || null;
+};
 
 const INVOICE_COUNTER_ID = "invoice";
 const INVOICE_NUMBER_PREFIX = "INV-";
@@ -244,12 +252,26 @@ export const createInvoice = async (req, res) => {
       usingTransaction = false;
     }
 
-    const { customerId, customer, status, materials, date } = req.body;
+    const companyId = getCompanyIdFromReq(req);
+    if (!companyId) {
+      if (usingTransaction && session) await session.abortTransaction();
+      return res.status(403).json({ message: "Company context missing in token" });
+    }
+
+    const { customerId, customer, status, materials, date, sourceOrderId } = req.body;
 
     const customerRef = customerId || customer;
     if (!customerRef) {
       await session.abortTransaction();
       return res.status(400).json({ message: "customerId/customer is required" });
+    }
+
+    const customerQuery = Customer.findOne({ _id: customerRef, companyId });
+    if (usingTransaction && session) customerQuery.session(session);
+    const customerDoc = await customerQuery;
+    if (!customerDoc) {
+      if (usingTransaction && session) await session.abortTransaction();
+      return res.status(404).json({ message: "Customer not found for your company" });
     }
 
     if (!Array.isArray(materials) || materials.length === 0) {
@@ -259,6 +281,7 @@ export const createInvoice = async (req, res) => {
 
     // 1) Validate + stock check
     const matchedMaterials = [];
+    const lowStockAlerts = [];
     for (const item of materials) {
       const name = String(item.name || "").trim();
       const qtyNeeded = Number(item.quantity);
@@ -269,7 +292,7 @@ export const createInvoice = async (req, res) => {
         return res.status(400).json({ message: "Each item needs valid name and quantity" });
       }
 
-      const query = Material.findOne({ name: new RegExp(`^${name}$`, "i") });
+      const query = Material.findOne({ companyId, name: new RegExp(`^${name}$`, "i") });
       if (usingTransaction && session) query.session(session);
       const dbMat = await query;
 
@@ -278,10 +301,22 @@ export const createInvoice = async (req, res) => {
         return res.status(404).json({ message: `Material not found: ${name}` });
       }
 
+      // Check if we have enough stock to proceed
       if (dbMat.quantity < qtyNeeded) {
         if (usingTransaction && session) await session.abortTransaction();
         return res.status(400).json({
           message: `Insufficient stock for ${dbMat.name}. Available: ${dbMat.quantity}, required: ${qtyNeeded}`,
+        });
+      }
+
+      // Check if invoice would leave material below minStock threshold
+      const remainingQty = dbMat.quantity - qtyNeeded;
+      const minStockValue = Number(dbMat.minStock || 0);
+      if (minStockValue > 0 && remainingQty <= minStockValue) {
+        lowStockAlerts.push({
+          material: dbMat.name,
+          quantity: remainingQty,
+          minStock: minStockValue,
         });
       }
 
@@ -292,7 +327,7 @@ export const createInvoice = async (req, res) => {
 
     // 2) Deduct stock (use matchedMaterials order)
     for (const m of matchedMaterials) {
-      const upd = Material.updateOne({ _id: m.dbMat._id }, { $inc: { quantity: -m.qtyNeeded } });
+      const upd = Material.updateOne({ _id: m.dbMat._id, companyId }, { $inc: { quantity: -m.qtyNeeded } });
       if (usingTransaction && session) await upd.session(session);
       else await upd;
     }
@@ -314,8 +349,10 @@ export const createInvoice = async (req, res) => {
     const [created] = await Invoice.create(
       [
         {
+          companyId,
           invoiceNumber,
           customer: customerRef,
+          sourceOrderId: sourceOrderId || null,
           status: status || "pending",
           materials: invoiceMaterials,
           amount,
@@ -327,10 +364,41 @@ export const createInvoice = async (req, res) => {
 
     if (usingTransaction && session) await session.commitTransaction();
 
-    const populated = await Invoice.findById(created._id)
+    const populated = await Invoice.findOne({ _id: created._id, companyId })
       .populate("customer")
       .populate("materials.material");
-    return res.status(201).json(populated);
+
+    // If invoice originates from an order, finalize selling/profit against that order.
+    if (sourceOrderId) {
+      try {
+        const linkedOrder = await Order.findOne({ _id: sourceOrderId, companyId });
+        if (linkedOrder) {
+          const totalQty = (invoiceMaterials || []).reduce((s, item) => s + Number(item.quantity || 0), 0);
+          const totalSelling = (invoiceMaterials || []).reduce((s, item) => s + (Number(item.quantity || 0) * Number(item.rate || 0)), 0);
+          const unitCost = Number(linkedOrder.costPrice || 0);
+          const sellingPerUnit = totalQty > 0 ? Number((totalSelling / totalQty).toFixed(2)) : 0;
+
+          linkedOrder.sellingPrice = sellingPerUnit;
+          if (Number.isFinite(unitCost) && unitCost > 0) {
+            const totalCost = Number((totalQty * unitCost).toFixed(2));
+            const totalProfit = Number((totalSelling - totalCost).toFixed(2));
+            linkedOrder.profitPerUnit = Number((sellingPerUnit - unitCost).toFixed(2));
+            linkedOrder.profit = totalProfit;
+          } else {
+            linkedOrder.profitPerUnit = 0;
+            linkedOrder.profit = 0;
+          }
+          linkedOrder.status = "completed";
+          await linkedOrder.save();
+        }
+      } catch (orderUpdateErr) {
+        console.error("createInvoice linked order update error:", orderUpdateErr);
+      }
+    }
+
+    // Return invoice with low-stock warnings if any
+    const response = { ...populated.toObject(), lowStockAlerts };
+    return res.status(201).json(response);
   } catch (err) {
     if (usingTransaction && session) await session.abortTransaction();
     console.error("createInvoice error:", err);
@@ -345,7 +413,15 @@ export const createInvoice = async (req, res) => {
  */
 export const getInvoices = async (req, res) => {
   try {
-    const invoices = await Invoice.find().sort({ createdAt: -1 }).populate("customer").populate("materials.material");
+    const companyId = getCompanyIdFromReq(req);
+    if (!companyId) {
+      return res.status(403).json({ message: "Company context missing in token" });
+    }
+
+    const invoices = await Invoice.find({ companyId })
+      .sort({ createdAt: -1 })
+      .populate("customer")
+      .populate("materials.material");
     res.json(invoices);
   } catch (err) {
     res.status(500).json({ message: "Failed to fetch invoices", error: err.message });
@@ -359,6 +435,11 @@ export const getInvoices = async (req, res) => {
  */
 export const updateInvoice = async (req, res) => {
   try {
+    const companyId = getCompanyIdFromReq(req);
+    if (!companyId) {
+      return res.status(403).json({ message: "Company context missing in token" });
+    }
+
     const { status, date, customerId, customer } = req.body;
 
     const payload = {
@@ -367,9 +448,13 @@ export const updateInvoice = async (req, res) => {
       ...(customerId || customer ? { customer: customerId || customer } : {}),
     };
 
-    const updated = await Invoice.findByIdAndUpdate(req.params.id, payload, {
-      new: true,
-    }).populate("customer").populate("materials.material");
+    const updated = await Invoice.findOneAndUpdate(
+      { _id: req.params.id, companyId },
+      payload,
+      { new: true }
+    )
+      .populate("customer")
+      .populate("materials.material");
 
     if (!updated) return res.status(404).json({ message: "Invoice not found" });
     res.json(updated);
@@ -396,7 +481,13 @@ export const deleteInvoice = async (req, res) => {
       usingTransaction = false;
     }
 
-    const invoiceQuery = Invoice.findById(req.params.id);
+    const companyId = getCompanyIdFromReq(req);
+    if (!companyId) {
+      if (usingTransaction && session) await session.abortTransaction();
+      return res.status(403).json({ message: "Company context missing in token" });
+    }
+
+    const invoiceQuery = Invoice.findOne({ _id: req.params.id, companyId });
     if (usingTransaction && session) invoiceQuery.session(session);
     const invoice = await invoiceQuery;
     if (!invoice) {
@@ -406,18 +497,18 @@ export const deleteInvoice = async (req, res) => {
 
     // restore stock
     for (const item of invoice.materials || []) {
-      const name = String(item.name || "").trim();
+      const materialId = item?.material || null;
       const qty = Number(item.quantity || 0);
 
-      if (name && qty > 0) {
-        const upd = Material.updateOne({ name: new RegExp(`^${name}$`, "i") }, { $inc: { quantity: qty } });
+      if (materialId && qty > 0) {
+        const upd = Material.updateOne({ _id: materialId, companyId }, { $inc: { quantity: qty } });
         if (usingTransaction && session) await upd.session(session);
         else await upd;
       }
     }
 
-    if (usingTransaction && session) await Invoice.deleteOne({ _id: invoice._id }).session(session);
-    else await Invoice.deleteOne({ _id: invoice._id });
+    if (usingTransaction && session) await Invoice.deleteOne({ _id: invoice._id, companyId }).session(session);
+    else await Invoice.deleteOne({ _id: invoice._id, companyId });
 
     if (usingTransaction && session) await session.commitTransaction();
     res.json({ message: "Invoice deleted and stock restored" });
@@ -433,9 +524,16 @@ export const deleteInvoice = async (req, res) => {
 export const generateInvoicePdf = async (req, res) => {
   try {
     const invoiceId = req.params.id;
+    const companyId = getCompanyIdFromReq(req);
+    if (!companyId) {
+      return res.status(403).json({ message: "Company context missing in token" });
+    }
+
     const companyProfile = req.body?.companyProfile || {};
-    const { pdfBuffer, invoice } = await generateInvoicePdfBuffer(invoiceId, companyProfile);
-    if (!pdfBuffer) return res.status(500).json({ message: 'Failed to generate PDF' });
+    const { pdfBuffer, invoice } = await generateInvoicePdfBuffer(invoiceId, companyProfile, companyId);
+    if (!pdfBuffer || !invoice) {
+      return res.status(404).json({ message: 'Invoice not found' });
+    }
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename="invoice_${invoice.invoiceNumber || invoice._id}.pdf"`);
@@ -446,9 +544,12 @@ export const generateInvoicePdf = async (req, res) => {
   }
 };
 
-export const generateInvoicePdfBuffer = async (invoiceId, rawCompanyProfile = {}) => {
+export const generateInvoicePdfBuffer = async (invoiceId, rawCompanyProfile = {}, tenantCompanyId = null) => {
   // returns { pdfBuffer: Buffer, invoice }
-  const invoice = await Invoice.findById(invoiceId).populate("customer").populate("materials.material");
+  const invoiceFilter = tenantCompanyId
+    ? { _id: invoiceId, companyId: tenantCompanyId }
+    : { _id: invoiceId };
+  const invoice = await Invoice.findOne(invoiceFilter).populate("customer").populate("materials.material");
   if (!invoice) return { pdfBuffer: null, invoice: null };
 
   const clientName = invoice.client || (invoice.customer && invoice.customer.name) || "";

@@ -2,6 +2,13 @@ import mongoose from "mongoose";
 
 const invoiceSchema = new mongoose.Schema(
 {
+  companyId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Company",
+    required: true,
+    index: true,
+  },
+
   invoiceNumber: {
     type: String,
     required: true,
@@ -13,6 +20,12 @@ const invoiceSchema = new mongoose.Schema(
     type: mongoose.Schema.Types.ObjectId,
     ref: "Customer",
     required: true
+  },
+
+  sourceOrderId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Order",
+    default: null,
   },
 
   status: {
