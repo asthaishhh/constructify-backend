@@ -8,6 +8,8 @@ import { fileURLToPath } from "url";
 import morgan from "morgan";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
+import uploadRoutes from "./routes/upload.route.js";
+
 // We'll use a lightweight custom sanitizer to avoid mutating getter-only req properties
 
 // ✅ Routes (your current folder structure)
@@ -45,10 +47,11 @@ const allowedOrigins = (
   process.env.FRONTEND_ORIGIN ||
   "http://localhost:5173"
 )
-  .split(",")
-  .map((origin) => origin.trim())
-  .filter(Boolean);
+.split(",")
+.map((origin) => origin.trim())
+.filter(Boolean);
 
+app.use("/api/upload", uploadRoutes);
 app.use(
   cors({
     origin: (origin, callback) => {
