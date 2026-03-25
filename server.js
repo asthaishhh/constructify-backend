@@ -51,6 +51,9 @@ app.use(
 // SANITIZER_SILENT=true|false (default: false) — when true, suppress warnings
 const SANITIZE_REQUESTS = (process.env.SANITIZE_REQUESTS ?? "true") === "true";
 const SANITIZER_SILENT = (process.env.SANITIZER_SILENT ?? "false") === "true";
+const ENABLE_SELF_PING = (process.env.ENABLE_SELF_PING ?? "true") === "true";
+const SELF_PING_INTERVAL_MS = Number(process.env.SELF_PING_INTERVAL_MS ?? 50000);
+const SELF_PING_BASE_URL = process.env.SELF_PING_URL || process.env.RENDER_EXTERNAL_URL;
 
 // Prevent NoSQL injection attacks by sanitizing `req.body` and `req.params` only.
 // Avoid touching `req.query` because some environments expose it as a getter-only property.
@@ -123,4 +126,39 @@ app.use((err, req, res, next) => {
   res.status(err.status || 500).json({ error: err.message || "Internal Server Error" });
 });
 
-app.listen(PORT, "0.0.0.0", () => console.log(`Server running on port ${PORT}`));
+const startSelfPing = () => {
+  if (!ENABLE_SELF_PING) return;
+  if (!SELF_PING_BASE_URL) {
+    if (!SANITIZER_SILENT) {
+      console.log("Self-ping skipped: set SELF_PING_URL or RENDER_EXTERNAL_URL to enable keep-alive pings.");
+    }
+    return;
+  }
+
+  if (typeof fetch !== "function") {
+    console.warn("Self-ping skipped: global fetch is unavailable. Use Node 18+.");
+    return;
+  }
+
+  const targetUrl = `${SELF_PING_BASE_URL.replace(/\/$/, "")}/api/health`;
+
+  const ping = async () => {
+    try {
+      const response = await fetch(targetUrl);
+      if (!response.ok) {
+        console.warn(`Self-ping failed: ${response.status} ${response.statusText}`);
+      }
+    } catch (error) {
+      console.warn("Self-ping error:", error.message);
+    }
+  };
+
+  // Trigger immediately, then keep pinging every 50 seconds (configurable).
+  ping();
+  setInterval(ping, SELF_PING_INTERVAL_MS);
+};
+
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`Server running on port ${PORT}`);
+  startSelfPing();
+});
