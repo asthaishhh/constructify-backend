@@ -38,11 +38,25 @@ app.use(morgan("dev"));
 
 // Security middlewares
 app.use(helmet());
-// CORS: allow origin from env or allow any in development
-const allowedOrigin = process.env.FRONTEND_ORIGIN || "http://localhost:5173";
+// CORS: support one or many allowed frontend origins via env.
+// FRONTEND_ORIGINS takes comma-separated URLs; FRONTEND_ORIGIN is kept for backward compatibility.
+const allowedOrigins = (
+  process.env.FRONTEND_ORIGINS ||
+  process.env.FRONTEND_ORIGIN ||
+  "http://localhost:5173"
+)
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
 app.use(
   cors({
-    origin: allowedOrigin,
+    origin: (origin, callback) => {
+      // Allow non-browser requests (no Origin header)
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+      return callback(new Error(`CORS blocked for origin: ${origin}`));
+    },
     credentials: true,
   })
 );
