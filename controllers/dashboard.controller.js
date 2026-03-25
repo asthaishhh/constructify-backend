@@ -166,7 +166,7 @@ export const getDashboardAnalytics = async (req, res) => {
     const monthlyMap = Object.fromEntries(
       monthKeys.map((monthKey) => [
         monthKey,
-        { month: monthLabelFromKey(monthKey), invoiceRevenue: 0, orderRevenue: 0, orderProfit: 0, invoices: 0, orders: 0 },
+        { monthKey, month: monthLabelFromKey(monthKey), invoiceRevenue: 0, orderRevenue: 0, orderProfit: 0, invoices: 0, orders: 0 },
       ])
     );
 
@@ -219,6 +219,7 @@ export const getDashboardAnalytics = async (req, res) => {
       const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
 
       return {
+        monthKey,
         month: row.month,
         revenue: round2(revenue),
         expenses: round2(expenses),
@@ -294,7 +295,7 @@ export const getDashboardAnalytics = async (req, res) => {
         lowStockCount,
       },
       revenueTrend: monthlyTrend,
-      profitMarginTrend: monthlyTrend.map((row) => ({ month: row.month, margin: row.margin })),
+      profitMarginTrend: monthlyTrend.map((row) => ({ monthKey: row.monthKey, month: row.month, margin: row.margin })),
       salesByCategory,
       orderStatus,
       stockLevels,
