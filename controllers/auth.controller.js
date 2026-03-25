@@ -134,6 +134,42 @@ export const me = async (req, res) => {
   });
 };
 
+export const getCompanyProfile = async (req, res) => {
+  try {
+    const userEmail = String(req?.user?.email || "").toLowerCase().trim();
+    const companyId = req?.user?.companyId ? String(req.user.companyId) : "";
+
+    let company = null;
+    if (companyId) {
+      company = await Company.findById(companyId).lean();
+    }
+
+    if (!company && userEmail) {
+      company = await Company.findOne({ email: userEmail }).lean();
+    }
+
+    if (!company) {
+      return res.status(404).json({ message: "Company profile not found" });
+    }
+
+    return res.json({
+      companyProfile: {
+        companyName: company.name || "",
+        companyTagline: company.companyTagline || "",
+        logo: company.logo || "",
+        ownerName: company.ownerName || "",
+        gstIn: company.gstIn || "",
+        address: company.address || "",
+        phone: company.phone || "",
+        email: company.email || "",
+      },
+    });
+  } catch (error) {
+    console.error("getCompanyProfile error:", error);
+    return res.status(500).json({ message: "Server error fetching company profile" });
+  }
+};
+
 export const registerCompany = async (req, res) => {
   try {
     const {
