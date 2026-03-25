@@ -1,27 +1,25 @@
-import Driver from "../models/driver.js";
+import Driver from "../models/Driver.js";
+
+const getCompanyIdFromReq = (req) => String(req?.user?.companyId || "").trim();
 
 
 // CREATE DRIVER
 export const createDriver = async (req, res) => {
   try {
+    const companyId = getCompanyIdFromReq(req);
+    if (!companyId) {
+      return res.status(403).json({ message: "Company context missing in token" });
+    }
 
-    const driver = new Driver(req.body);
+    const driver = new Driver({ ...req.body, companyId });
     await driver.save();
 
-    res.status(201).json({
-      success: true,
-      message: "Driver added successfully",
-      driver
-    });
-
+    res.status(201).json(driver);
   } catch (error) {
-
     res.status(500).json({
-      success: false,
       message: "Error creating driver",
-      error: error.message
+      error: error.message,
     });
-
   }
 };
 
@@ -30,22 +28,18 @@ export const createDriver = async (req, res) => {
 // GET ALL DRIVERS
 export const getAllDrivers = async (req, res) => {
   try {
+    const companyId = getCompanyIdFromReq(req);
+    if (!companyId) {
+      return res.status(403).json({ message: "Company context missing in token" });
+    }
 
-    const drivers = await Driver.find().sort({ createdAt: -1 });
-
-    res.status(200).json({
-      success: true,
-      drivers
-    });
-
+    const drivers = await Driver.find({ companyId }).sort({ createdAt: -1 });
+    res.status(200).json(drivers);
   } catch (error) {
-
     res.status(500).json({
-      success: false,
       message: "Error fetching drivers",
-      error: error.message
+      error: error.message,
     });
-
   }
 };
 
@@ -54,29 +48,23 @@ export const getAllDrivers = async (req, res) => {
 // GET SINGLE DRIVER
 export const getDriverById = async (req, res) => {
   try {
-
-    const driver = await Driver.findById(req.params.id);
-
-    if (!driver) {
-      return res.status(404).json({
-        success: false,
-        message: "Driver not found"
-      });
+    const companyId = getCompanyIdFromReq(req);
+    if (!companyId) {
+      return res.status(403).json({ message: "Company context missing in token" });
     }
 
-    res.status(200).json({
-      success: true,
-      driver
-    });
+    const driver = await Driver.findOne({ _id: req.params.id, companyId });
 
+    if (!driver) {
+      return res.status(404).json({ message: "Driver not found" });
+    }
+
+    res.status(200).json(driver);
   } catch (error) {
-
     res.status(500).json({
-      success: false,
       message: "Error fetching driver",
-      error: error.message
+      error: error.message,
     });
-
   }
 };
 
@@ -85,34 +73,27 @@ export const getDriverById = async (req, res) => {
 // UPDATE DRIVER
 export const updateDriver = async (req, res) => {
   try {
+    const companyId = getCompanyIdFromReq(req);
+    if (!companyId) {
+      return res.status(403).json({ message: "Company context missing in token" });
+    }
 
-    const driver = await Driver.findByIdAndUpdate(
-      req.params.id,
+    const driver = await Driver.findOneAndUpdate(
+      { _id: req.params.id, companyId },
       req.body,
-      { new: true }
+      { new: true, runValidators: true }
     );
 
     if (!driver) {
-      return res.status(404).json({
-        success: false,
-        message: "Driver not found"
-      });
+      return res.status(404).json({ message: "Driver not found" });
     }
 
-    res.status(200).json({
-      success: true,
-      message: "Driver updated successfully",
-      driver
-    });
-
+    res.status(200).json(driver);
   } catch (error) {
-
     res.status(500).json({
-      success: false,
       message: "Error updating driver",
-      error: error.message
+      error: error.message,
     });
-
   }
 };
 
@@ -121,28 +102,22 @@ export const updateDriver = async (req, res) => {
 // DELETE DRIVER
 export const deleteDriver = async (req, res) => {
   try {
-
-    const driver = await Driver.findByIdAndDelete(req.params.id);
-
-    if (!driver) {
-      return res.status(404).json({
-        success: false,
-        message: "Driver not found"
-      });
+    const companyId = getCompanyIdFromReq(req);
+    if (!companyId) {
+      return res.status(403).json({ message: "Company context missing in token" });
     }
 
-    res.status(200).json({
-      success: true,
-      message: "Driver deleted successfully"
-    });
+    const driver = await Driver.findOneAndDelete({ _id: req.params.id, companyId });
 
+    if (!driver) {
+      return res.status(404).json({ message: "Driver not found" });
+    }
+
+    res.status(200).json({ message: "Driver deleted successfully" });
   } catch (error) {
-
     res.status(500).json({
-      success: false,
       message: "Error deleting driver",
-      error: error.message
+      error: error.message,
     });
-
   }
 };

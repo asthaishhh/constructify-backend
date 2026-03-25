@@ -1,27 +1,25 @@
 import Vehicle from "../models/Vehicle.js";
 
+const getCompanyIdFromReq = (req) => String(req?.user?.companyId || "").trim();
+
 
 // CREATE VEHICLE
 export const createVehicle = async (req, res) => {
   try {
+    const companyId = getCompanyIdFromReq(req);
+    if (!companyId) {
+      return res.status(403).json({ message: "Company context missing in token" });
+    }
 
-    const vehicle = new Vehicle(req.body);
+    const vehicle = new Vehicle({ ...req.body, companyId });
     await vehicle.save();
 
-    res.status(201).json({
-      success: true,
-      message: "Vehicle added successfully",
-      vehicle
-    });
-
+    res.status(201).json(vehicle);
   } catch (error) {
-
     res.status(500).json({
-      success: false,
       message: "Error creating vehicle",
-      error: error.message
+      error: error.message,
     });
-
   }
 };
 
@@ -30,22 +28,18 @@ export const createVehicle = async (req, res) => {
 // GET ALL VEHICLES
 export const getAllVehicles = async (req, res) => {
   try {
+    const companyId = getCompanyIdFromReq(req);
+    if (!companyId) {
+      return res.status(403).json({ message: "Company context missing in token" });
+    }
 
-    const vehicles = await Vehicle.find().sort({ createdAt: -1 });
-
-    res.status(200).json({
-      success: true,
-      vehicles
-    });
-
+    const vehicles = await Vehicle.find({ companyId }).sort({ createdAt: -1 });
+    res.status(200).json(vehicles);
   } catch (error) {
-
     res.status(500).json({
-      success: false,
       message: "Error fetching vehicles",
-      error: error.message
+      error: error.message,
     });
-
   }
 };
 
@@ -54,29 +48,23 @@ export const getAllVehicles = async (req, res) => {
 // GET SINGLE VEHICLE
 export const getVehicleById = async (req, res) => {
   try {
-
-    const vehicle = await Vehicle.findById(req.params.id);
-
-    if (!vehicle) {
-      return res.status(404).json({
-        success: false,
-        message: "Vehicle not found"
-      });
+    const companyId = getCompanyIdFromReq(req);
+    if (!companyId) {
+      return res.status(403).json({ message: "Company context missing in token" });
     }
 
-    res.status(200).json({
-      success: true,
-      vehicle
-    });
+    const vehicle = await Vehicle.findOne({ _id: req.params.id, companyId });
 
+    if (!vehicle) {
+      return res.status(404).json({ message: "Vehicle not found" });
+    }
+
+    res.status(200).json(vehicle);
   } catch (error) {
-
     res.status(500).json({
-      success: false,
       message: "Error fetching vehicle",
-      error: error.message
+      error: error.message,
     });
-
   }
 };
 
@@ -85,34 +73,27 @@ export const getVehicleById = async (req, res) => {
 // UPDATE VEHICLE
 export const updateVehicle = async (req, res) => {
   try {
+    const companyId = getCompanyIdFromReq(req);
+    if (!companyId) {
+      return res.status(403).json({ message: "Company context missing in token" });
+    }
 
-    const vehicle = await Vehicle.findByIdAndUpdate(
-      req.params.id,
+    const vehicle = await Vehicle.findOneAndUpdate(
+      { _id: req.params.id, companyId },
       req.body,
-      { new: true }
+      { new: true, runValidators: true }
     );
 
     if (!vehicle) {
-      return res.status(404).json({
-        success: false,
-        message: "Vehicle not found"
-      });
+      return res.status(404).json({ message: "Vehicle not found" });
     }
 
-    res.status(200).json({
-      success: true,
-      message: "Vehicle updated successfully",
-      vehicle
-    });
-
+    res.status(200).json(vehicle);
   } catch (error) {
-
     res.status(500).json({
-      success: false,
       message: "Error updating vehicle",
-      error: error.message
+      error: error.message,
     });
-
   }
 };
 
@@ -121,28 +102,22 @@ export const updateVehicle = async (req, res) => {
 // DELETE VEHICLE
 export const deleteVehicle = async (req, res) => {
   try {
-
-    const vehicle = await Vehicle.findByIdAndDelete(req.params.id);
-
-    if (!vehicle) {
-      return res.status(404).json({
-        success: false,
-        message: "Vehicle not found"
-      });
+    const companyId = getCompanyIdFromReq(req);
+    if (!companyId) {
+      return res.status(403).json({ message: "Company context missing in token" });
     }
 
-    res.status(200).json({
-      success: true,
-      message: "Vehicle deleted successfully"
-    });
+    const vehicle = await Vehicle.findOneAndDelete({ _id: req.params.id, companyId });
 
+    if (!vehicle) {
+      return res.status(404).json({ message: "Vehicle not found" });
+    }
+
+    res.status(200).json({ message: "Vehicle deleted successfully" });
   } catch (error) {
-
     res.status(500).json({
-      success: false,
       message: "Error deleting vehicle",
-      error: error.message
+      error: error.message,
     });
-
   }
 };

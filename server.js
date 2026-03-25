@@ -19,6 +19,7 @@ import materialRoutes from "./routes/material.routes.js";
 import orderRoutes from "./routes/order.route.js";
 import emailRoutes from "./routes/email.js";
 import dashboardRoutes from "./routes/dashboard.route.js";
+import transportationRoutes from "./routes/transportation.js";
 
 
 // Ensure .env is loaded from the backend directory regardless of CWD
@@ -103,6 +104,7 @@ app.use("/api/materials", materialRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/email", emailRoutes);
 app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/transportation", transportationRoutes);
 
 // Root + health
 app.get("/", (req, res) => res.send("API is running"));
